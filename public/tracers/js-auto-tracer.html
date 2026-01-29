@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript Auto-Tracer</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 16px; }
+        .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+        .panel {
+            padding: 30px;
+            min-height: 500px;
+        }
+        .panel-left { border-right: 2px solid #f0f0f0; }
+        .panel h2 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .code-editor {
+            width: 100%;
+            min-height: 300px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        .code-editor:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 15px;
+            transition: transform 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:active { transform: translateY(0); }
+        .trace-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .trace-call { color: #4ec9b0; }
+        .trace-return { color: #ce9178; }
+        .trace-time { color: #858585; font-size: 11px; }
+        .trace-depth { color: #858585; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .back-link {
+            display: inline-block;
+            margin: 20px 30px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← Back to Exercises</a>
+    
+    <div class="container">
+        <div class="header">
+            <h1>⚡ JavaScript Auto-Tracer</h1>
+            <p>Write normal JavaScript - automatic tracing with Babel</p>
+            <span class="badge">🤖 AUTOMATIC - No manual wrapping needed!</span>
+        </div>
+
+        <div class="workspace">
+            <div class="panel panel-left">
+                <h2>📝 Your Code (Write Normal JavaScript!)</h2>
+                <textarea class="code-editor" id="codeInput">function fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+const result = fibonacci(5);
+console.log('Result:', result);</textarea>
+                <button class="btn" onclick="runCode()">▶️ Run with Auto-Trace</button>
+            </div>
+
+            <div class="panel">
+                <h2>🔍 Execution Trace (Automatic!)</h2>
+                
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="callCount">0</div>
+                        <div class="stat-label">Calls</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="returnCount">0</div>
+                        <div class="stat-label">Returns</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="maxDepth">0</div>
+                        <div class="stat-label">Max Depth</div>
+                    </div>
+                </div>
+
+                <div class="trace-output" id="traceOutput">
+                    <div style="color: #858585;">Ready! Write your code and click Run.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let traces = [];
+        let callCount = 0;
+        let returnCount = 0;
+        let maxDepth = 0;
+        let startTime = 0;
+
+        function addTrace(message, type, depth) {
+            const time = Date.now() - startTime;
+            traces.push({ message, type, depth, time });
+            
+            const output = document.getElementById('traceOutput');
+            const div = document.createElement('div');
+            div.className = type === 'call' ? 'trace-call' : 'trace-return';
+            div.innerHTML = `${message}<br><span class="trace-time">${time}ms | depth: ${depth}</span>`;
+            output.appendChild(div);
+
+            if (type === 'call') callCount++;
+            if (type === 'return') returnCount++;
+            maxDepth = Math.max(maxDepth, depth);
+
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('callCount').textContent = callCount;
+            document.getElementById('returnCount').textContent = returnCount;
+            document.getElementById('maxDepth').textContent = maxDepth;
+        }
+
+        // Babel plugin to auto-instrument functions
+        function tracePlugin({ types: t }) {
+            return {
+                visitor: {
+                    FunctionDeclaration(path) {
+                        instrumentFunction(path, t);
+                    },
+                    FunctionExpression(path) {
+                        instrumentFunction(path, t);
+                    },
+                    ArrowFunctionExpression(path) {
+                        instrumentFunction(path, t);
+                    }
+                }
+            };
+        }
+
+        function instrumentFunction(path, t) {
+            const funcName = path.node.id?.name || 'anonymous';
+            const params = path.node.params.map(p => p.name || 'arg');
+            
+            const body = path.node.body;
+            
+            // Skip if already instrumented
+            if (body.body?.[0]?.expression?.callee?.name === '__traceCall') return;
+
+            // Create trace call at start: __traceCall("funcName", [arg1, arg2])
+            const traceCallNode = t.expressionStatement(
+                t.callExpression(
+                    t.identifier('__traceCall'),
+                    [
+                        t.stringLiteral(funcName),
+                        t.arrayExpression(params.map(p => t.identifier(p)))
+                    ]
+                )
+            );
+
+            // Wrap returns with trace
+            path.traverse({
+                ReturnStatement(returnPath) {
+                    const arg = returnPath.node.argument;
+                    returnPath.node.argument = t.callExpression(
+                        t.identifier('__traceReturn'),
+                        [
+                            t.stringLiteral(funcName),
+                            arg || t.identifier('undefined')
+                        ]
+                    );
+                }
+            });
+
+            // Insert trace at function start
+            if (body.type === 'BlockStatement') {
+                body.body.unshift(traceCallNode);
+            }
+        }
+
+        let callStack = [];
+
+        window.__traceCall = function(name, args) {
+            callStack.push(name);
+            addTrace(`→ CALL ${name}(${args.join(', ')})`, 'call', callStack.length - 1);
+        };
+
+        window.__traceReturn = function(name, value) {
+            addTrace(`← RETURN ${name}() → ${JSON.stringify(value)}`, 'return', callStack.length - 1);
+            callStack.pop();
+            return value;
+        };
+
+        function runCode() {
+            // Reset
+            traces = [];
+            callCount = 0;
+            returnCount = 0;
+            maxDepth = 0;
+            callStack = [];
+            startTime = Date.now();
+            document.getElementById('traceOutput').innerHTML = '';
+
+            const code = document.getElementById('codeInput').value;
+
+            try {
+                // Transform code with Babel
+                const transformed = Babel.transform(code, {
+                    plugins: [tracePlugin]
+                }).code;
+
+                // Capture console.log
+                const logs = [];
+                const originalLog = console.log;
+                console.log = function(...args) {
+                    logs.push(args.join(' '));
+                    originalLog.apply(console, args);
+                };
+
+                // Execute transformed code
+                eval(transformed);
+
+                // Restore console.log
+                console.log = originalLog;
+
+                // Show console output
+                if (logs.length > 0) {
+                    const output = document.getElementById('traceOutput');
+                    const div = document.createElement('div');
+                    div.style.color = '#4fc3f7';
+                    div.style.marginTop = '20px';
+                    div.innerHTML = '<strong>Console Output:</strong><br>' + logs.join('<br>');
+                    output.appendChild(div);
+                }
+
+            } catch (error) {
+                const output = document.getElementById('traceOutput');
+                output.innerHTML = `<div style="color: #f44336;">Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

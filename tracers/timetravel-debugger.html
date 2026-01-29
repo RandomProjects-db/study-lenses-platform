@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time-Travel Debugger</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            background: #1e1e1e;
+        }
+        .container { display: grid; grid-template-rows: 70px 60px 1fr; height: 100vh; }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .header h1 { font-size: 20px; font-weight: 700; }
+        .controls { display: flex; gap: 12px; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-run { background: #48bb78; color: white; }
+        .btn-run:hover { background: #38a169; transform: translateY(-2px); }
+        .btn-clear { background: #f56565; color: white; }
+        .btn-nav { background: #667eea; color: white; }
+        .btn-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+        .timeline {
+            background: #2d2d30;
+            padding: 15px 30px;
+            border-bottom: 1px solid #3e3e42;
+        }
+        .timeline-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .slider {
+            flex: 1;
+            height: 8px;
+            border-radius: 4px;
+            background: #3e3e42;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .timeline-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #858585;
+        }
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 0;
+            background: #1e1e1e;
+            overflow: hidden;
+        }
+        .panel {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            background: #2d2d30;
+            color: #cccccc;
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid #3e3e42;
+            flex-shrink: 0;
+        }
+        .panel-content { 
+            flex: 1; 
+            overflow: auto;
+            min-height: 0;
+        }
+        .code-editor {
+            width: 100%;
+            height: 100%;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            resize: none;
+            outline: none;
+        }
+        .output {
+            background: #1e1e1e;
+            color: #cccccc;
+            padding: 20px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            height: 100%;
+            overflow-y: auto;
+        }
+        .snapshot-list { padding: 15px; background: #1e1e1e; height: 100%; overflow-y: auto; }
+        .snapshot-item {
+            background: #2d2d30;
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #3e3e42;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .snapshot-item:hover { border-left-color: #667eea; transform: translateX(4px); }
+        .snapshot-item.active { border-left-color: #667eea; background: #3e3e42; }
+        .snapshot-label { font-weight: 600; color: #cccccc; margin-bottom: 4px; }
+        .snapshot-time { font-size: 11px; color: #858585; }
+        .var-display { padding: 15px; background: #1e1e1e; height: 100%; overflow-y: auto; }
+        .var-item {
+            background: #2d2d30;
+            margin: 6px 0;
+            padding: 10px;
+            border-radius: 4px;
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 10px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+        }
+        .var-name { color: #9cdcfe; font-weight: 600; }
+        .var-value { color: #ce9178; word-break: break-all; }
+        .empty { text-align: center; color: #858585; padding: 40px; }
+        .lang-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .lang-tab {
+            padding: 8px 16px;
+            background: #2d2d30;
+            color: #858585;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .lang-tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .editor-panel { display: none; }
+        .editor-panel.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏰ Time-Travel Debugger</h1>
+            <div class="controls">
+                <div class="lang-tabs">
+                    <button class="lang-tab active" onclick="switchLang('js')">⚡ JavaScript</button>
+                    <button class="lang-tab" onclick="switchLang('python')">🐍 Python</button>
+                </div>
+                <button class="btn btn-run" onclick="runCode()">▶️ Run</button>
+                <button class="btn btn-clear" onclick="clearAll()">🗑️ Clear</button>
+            </div>
+        </div>
+        
+        <div class="timeline">
+            <div class="timeline-controls">
+                <button class="btn btn-nav" onclick="stepBack()" id="btnBack" disabled>⏮️ Back</button>
+                <input type="range" class="slider" id="slider" min="0" max="0" value="0" disabled oninput="jumpTo(this.value)">
+                <button class="btn btn-nav" onclick="stepForward()" id="btnForward" disabled>⏭️ Forward</button>
+            </div>
+            <div class="timeline-info">
+                <span>Snapshot: <span id="current">0</span> / <span id="total">0</span></span>
+                <span>Time: <span id="time">0ms</span></span>
+            </div>
+        </div>
+        
+        <div class="workspace">
+            <div class="panel">
+                <div class="panel-header">📝 Code</div>
+                <div class="panel-content">
+                    <div class="editor-panel active" id="jsEditor">
+                        <textarea class="code-editor" id="jsCode">function fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+let result = fibonacci(5);
+console.log('Result:', result);</textarea>
+                    </div>
+                    <div class="editor-panel" id="pythonEditor">
+                        <textarea class="code-editor" id="pythonCode">def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+result = fibonacci(5)
+print('Result:', result)</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">📸 Snapshots</div>
+                <div class="panel-content">
+                    <div class="snapshot-list" id="snapshots">
+                        <div class="empty">Run code to create snapshots</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">💬 Console</div>
+                <div class="panel-content">
+                    <div class="output" id="console">
+                        <div style="color: #858585;">Ready!</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">📊 Variables at Current Snapshot</div>
+                <div class="panel-content">
+                    <div class="var-display" id="variables">
+                        <div class="empty">No variables yet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let snapshots = [];
+        let currentIndex = -1;
+        let startTime = 0;
+        let currentLang = 'js';
+        let pyodide = null;
+        let pythonReady = false;
+
+        function switchLang(lang) {
+            currentLang = lang;
+            document.querySelectorAll('.lang-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            document.querySelectorAll('.editor-panel').forEach(panel => panel.classList.remove('active'));
+            document.getElementById(lang === 'js' ? 'jsEditor' : 'pythonEditor').classList.add('active');
+            
+            if (lang === 'python' && !pythonReady) {
+                loadPyodideRuntime();
+            }
+        }
+
+        async function loadPyodideRuntime() {
+            if (pyodide) return;
+            const consoleEl = document.getElementById('console');
+            consoleEl.innerHTML = '<div style="color: #4fc3f7;">⏳ Loading Python (~10MB)...</div>';
+            
+            try {
+                pyodide = await loadPyodide({ 
+                    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/' 
+                });
+                
+                await pyodide.runPythonAsync(`
+import sys
+import json
+from js import addPythonSnapshot
+
+trace_depth = 0
+
+def trace_function(frame, event, arg):
+    global trace_depth
+    func_name = frame.f_code.co_name
+    filename = frame.f_code.co_filename
+    
+    if 'exec' not in filename or func_name == 'trace_function':
+        return trace_function
+    
+    if event == 'call':
+        args = {k: str(v) for k, v in frame.f_locals.items()}
+        addPythonSnapshot(json.dumps({
+            'type': 'call',
+            'name': func_name,
+            'vars': args,
+            'depth': trace_depth
+        }))
+        trace_depth += 1
+    elif event == 'return':
+        trace_depth -= 1
+        addPythonSnapshot(json.dumps({
+            'type': 'return',
+            'name': func_name,
+            'value': str(arg) if arg is not None else 'None',
+            'depth': trace_depth
+        }))
+    
+    return trace_function
+
+sys.settrace(trace_function)
+                `);
+                pythonReady = true;
+                consoleEl.innerHTML = '<div style="color: #48bb78;">✓ Python ready!</div>';
+            } catch (e) {
+                consoleEl.innerHTML = '<div style="color: #f44336;">✗ Error: ' + e.message + '</div>';
+                console.error(e);
+            }
+        }
+
+        window.addPythonSnapshot = function(jsonStr) {
+            const data = JSON.parse(jsonStr);
+            if (data.type === 'call') {
+                const vars = { ...data.vars, function: data.name };
+                snapshot(`CALL ${data.name}()`, vars);
+            } else {
+                snapshot(`RETURN ${data.name}() → ${data.value}`, { 
+                    function: data.name,
+                    return_value: data.value 
+                });
+            }
+        };
+
+        
+        function snapshot(label, vars) {
+            const snap = {
+                id: snapshots.length,
+                timestamp: Date.now() - startTime,
+                label,
+                vars: JSON.parse(JSON.stringify(vars))
+            };
+            snapshots.push(snap);
+            currentIndex = snapshots.length - 1;
+            updateUI();
+        }
+        
+        // Babel plugin for automatic tracing
+        function tracePlugin({ types: t }) {
+            return {
+                visitor: {
+                    FunctionDeclaration(path) {
+                        instrumentFunction(path, t);
+                    },
+                    FunctionExpression(path) {
+                        instrumentFunction(path, t);
+                    },
+                    ArrowFunctionExpression(path) {
+                        instrumentFunction(path, t);
+                    }
+                }
+            };
+        }
+
+        function instrumentFunction(path, t) {
+            const funcName = path.node.id?.name || 'anonymous';
+            const params = path.node.params.map(p => p.name || 'arg');
+            const body = path.node.body;
+            if (body.body?.[0]?.expression?.callee?.name === '__traceCall') return;
+            const traceCallNode = t.expressionStatement(
+                t.callExpression(t.identifier('__traceCall'), [
+                    t.stringLiteral(funcName),
+                    t.arrayExpression(params.map(p => t.identifier(p)))
+                ])
+            );
+            path.traverse({
+                ReturnStatement(returnPath) {
+                    const arg = returnPath.node.argument;
+                    returnPath.node.argument = t.callExpression(
+                        t.identifier('__traceReturn'),
+                        [t.stringLiteral(funcName), arg || t.identifier('undefined')]
+                    );
+                }
+            });
+            if (body.type === 'BlockStatement') {
+                body.body.unshift(traceCallNode);
+            }
+        }
+
+        window.__traceCall = function(name, args) {
+            const vars = {};
+            args.forEach((arg, i) => {
+                vars[`arg${i}`] = arg;
+            });
+            vars['function'] = name;
+            snapshot(`CALL ${name}(${args.join(', ')})`, vars);
+        };
+
+        window.__traceReturn = function(name, value) {
+            snapshot(`RETURN ${name}() → ${value}`, { 
+                function: name,
+                return_value: value 
+            });
+            return value;
+        };
+
+        function trace(fn, name) {
+            return function() {
+                const args = Array.from(arguments);
+                const depth = 0;
+                
+                snapshot(`CALL ${name}(${args.join(', ')})`, { [name + '_args']: args });
+                
+                const result = fn.apply(this, args);
+                
+                snapshot(`RETURN ${name}() → ${result}`, { [name + '_result']: result });
+                
+                return result;
+            };
+        }
+        
+        async function runCode() {
+            snapshots = [];
+            currentIndex = -1;
+            startTime = Date.now();
+            
+            document.getElementById('console').innerHTML = '';
+            document.getElementById('snapshots').innerHTML = '';
+            document.getElementById('variables').innerHTML = '<div class="empty">No variables yet</div>';
+            
+            if (currentLang === 'js') {
+                const code = document.getElementById('jsCode').value;
+                
+                const originalLog = console.log;
+                console.log = function() {
+                    const msg = Array.from(arguments).map(a => String(a)).join(' ');
+                    const div = document.createElement('div');
+                    div.textContent = msg;
+                    document.getElementById('console').appendChild(div);
+                    snapshot('console.log', { output: msg });
+                    originalLog.apply(console, arguments);
+                };
+                
+                try {
+                    const transformed = Babel.transform(code, {
+                        plugins: [tracePlugin]
+                    }).code;
+                    eval(transformed);
+                } catch (e) {
+                    const div = document.createElement('div');
+                    div.style.color = '#f44336';
+                    div.textContent = 'Error: ' + e.message;
+                    document.getElementById('console').appendChild(div);
+                } finally {
+                    console.log = originalLog;
+                }
+            } else {
+                if (!pythonReady) {
+                    document.getElementById('console').innerHTML = '<div style="color: #f44336;">⏳ Python still loading...</div>';
+                    return;
+                }
+                
+                const code = document.getElementById('pythonCode').value;
+                
+                try {
+                    await pyodide.runPythonAsync('import sys; from io import StringIO; output_buffer = StringIO(); sys.stdout = output_buffer; sys.settrace(trace_function)');
+                    await pyodide.runPythonAsync(code);
+                    await pyodide.runPythonAsync('sys.settrace(None)');
+                    const output = await pyodide.runPythonAsync('output_buffer.getvalue()');
+                    
+                    if (output) {
+                        const div = document.createElement('div');
+                        div.textContent = output;
+                        document.getElementById('console').appendChild(div);
+                        snapshot('print', { output });
+                    }
+                } catch (e) {
+                    const div = document.createElement('div');
+                    div.style.color = '#f44336';
+                    div.textContent = 'Error: ' + e.message;
+                    document.getElementById('console').appendChild(div);
+                }
+            }
+            
+            updateUI();
+        }
+        
+        function updateUI() {
+            renderSnapshots();
+            renderVariables();
+            updateControls();
+        }
+        
+        function renderSnapshots() {
+            const container = document.getElementById('snapshots');
+            if (snapshots.length === 0) {
+                container.innerHTML = '<div class="empty">Run code to create snapshots</div>';
+                return;
+            }
+            container.innerHTML = snapshots.map((snap, i) => `
+                <div class="snapshot-item ${i === currentIndex ? 'active' : ''}" onclick="jumpTo(${i})">
+                    <div class="snapshot-label">${snap.label}</div>
+                    <div class="snapshot-time">${snap.timestamp}ms - #${snap.id}</div>
+                </div>
+            `).join('');
+        }
+        
+        function renderVariables() {
+            const container = document.getElementById('variables');
+            if (currentIndex === -1 || !snapshots[currentIndex]) {
+                container.innerHTML = '<div class="empty">No variables yet</div>';
+                return;
+            }
+            const vars = snapshots[currentIndex].vars;
+            const entries = Object.entries(vars);
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="empty">No variables in snapshot</div>';
+                return;
+            }
+            
+            // Sort: function first, then args, then return_value
+            const sorted = entries.sort(([a], [b]) => {
+                if (a === 'function') return -1;
+                if (b === 'function') return 1;
+                if (a === 'return_value') return 1;
+                if (b === 'return_value') return -1;
+                return 0;
+            });
+            
+            container.innerHTML = sorted.map(([name, value]) => {
+                const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                const emoji = name === 'function' ? '📦' : name === 'return_value' ? '↩️' : '📌';
+                return `
+                    <div class="var-item">
+                        <div class="var-name">${emoji} ${name}</div>
+                        <div class="var-value">${displayValue}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function updateControls() {
+            const slider = document.getElementById('slider');
+            const btnBack = document.getElementById('btnBack');
+            const btnForward = document.getElementById('btnForward');
+            
+            if (snapshots.length > 0) {
+                slider.disabled = false;
+                slider.max = snapshots.length - 1;
+                slider.value = currentIndex;
+            } else {
+                slider.disabled = true;
+            }
+            
+            btnBack.disabled = currentIndex <= 0;
+            btnForward.disabled = currentIndex >= snapshots.length - 1;
+            
+            document.getElementById('current').textContent = currentIndex + 1;
+            document.getElementById('total').textContent = snapshots.length;
+            
+            if (currentIndex >= 0) {
+                document.getElementById('time').textContent = snapshots[currentIndex].timestamp + 'ms';
+            }
+        }
+        
+        function stepBack() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateUI();
+            }
+        }
+        
+        function stepForward() {
+            if (currentIndex < snapshots.length - 1) {
+                currentIndex++;
+                updateUI();
+            }
+        }
+        
+        function jumpTo(index) {
+            currentIndex = parseInt(index);
+            updateUI();
+        }
+        
+        function clearAll() {
+            snapshots = [];
+            currentIndex = -1;
+            document.getElementById('console').innerHTML = '<div style="color: #858585;">Ready!</div>';
+            document.getElementById('snapshots').innerHTML = '<div class="empty">Run code to create snapshots</div>';
+            document.getElementById('variables').innerHTML = '<div class="empty">No variables yet</div>';
+            updateUI();
+        }
+    </script>
+</body>
+</html>

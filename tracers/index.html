@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <link rel="manifest" href="manifest.json">
+    <title>Code Execution Tracers</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 60px;
+        }
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .header p {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+        .exercises {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        .card p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .card .features {
+            list-style: none;
+            margin-bottom: 20px;
+        }
+        .card .features li {
+            color: #444;
+            padding: 6px 0;
+            padding-left: 24px;
+            position: relative;
+        }
+        .card .features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #48bb78;
+            font-weight: bold;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .info-section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .info-section h2 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+        .info-section p {
+            color: #666;
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+        .pattern-diagram {
+            background: #f7fafc;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .pattern-diagram code {
+            display: block;
+            font-family: 'Consolas', monospace;
+            color: #2d3748;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Code Execution Tracers</h1>
+            <p>Learn code execution through inspectable pipelines</p>
+        </div>
+        
+        <div class="exercises">
+            <div class="card">
+                <h2>⚡ JavaScript Auto-Tracer</h2>
+                <p>Automatic tracing using Babel - write normal code!</p>
+                <ul class="features">
+                    <li>🤖 Automatic instrumentation</li>
+                    <li>No manual wrapping needed</li>
+                    <li>Babel AST transformation</li>
+                    <li>Production-ready approach</li>
+                </ul>
+                <a href="js-auto-tracer.html" class="btn">Open Auto-Tracer (NEW!)</a>
+            </div>
+
+            <div class="card">
+                <h2>⚡ JavaScript Tracer</h2>
+                <p>Full-featured execution tracer with detailed statistics.</p>
+                <ul class="features">
+                    <li>Automatic instrumentation</li>
+                    <li>4-panel grid layout</li>
+                    <li>See every recursive call</li>
+                    <li>Call depth visualization</li>
+                </ul>
+                <a href="js-tracer.html" class="btn">Open JavaScript Tracer</a>
+            </div>
+            
+            <div class="card">
+                <h2>🐍 Python Tracer</h2>
+                <p>Automatic tracing using Pyodide and sys.settrace().</p>
+                <ul class="features">
+                    <li>Full CPython in browser</li>
+                    <li>Automatic sys.settrace()</li>
+                    <li>No manual wrapping needed</li>
+                    <li>NumPy/Pandas support</li>
+                </ul>
+                <a href="python-tracer.html" class="btn">Open Python Tracer</a>
+            </div>
+            
+            <div class="card">
+                <h2>🚀 Hybrid Tracer</h2>
+                <p>Best of both worlds - JavaScript AND Python in one tool.</p>
+                <ul class="features">
+                    <li>Switch between languages</li>
+                    <li>JS loads instantly</li>
+                    <li>Python loads async</li>
+                    <li>Unified interface</li>
+                </ul>
+                <a href="hybrid-tracer.html" class="btn">Open Hybrid Tracer</a>
+            </div>
+            
+            <div class="card">
+                <h2>⏰ Time-Travel Debugger</h2>
+                <p>Step backward and forward through execution history.</p>
+                <ul class="features">
+                    <li>Snapshot navigation</li>
+                    <li>Variable state tracking</li>
+                    <li>Timeline scrubbing</li>
+                    <li>JavaScript + Python support</li>
+                </ul>
+                <a href="timetravel-debugger.html" class="btn">Open Time-Travel Debugger</a>
+            </div>
+
+            <div class="card">
+                <h2>🎨 Visualization Comparison</h2>
+                <p>Compare 5 visualization libraries rendering the same data.</p>
+                <ul class="features">
+                    <li>Mermaid.js diagrams</li>
+                    <li>D3.js interactive trees</li>
+                    <li>Cytoscape.js graphs</li>
+                    <li>See which one wins!</li>
+                </ul>
+                <a href="viz-comparison.html" class="btn">Compare Visualizations</a>
+            </div>
+
+            <div class="card">
+                <h2>🎬 Animation Comparison</h2>
+                <p>Interactive animations, drag-drop, and flow-based programming.</p>
+                <ul class="features">
+                    <li>Anime.js step-by-step</li>
+                    <li>GSAP timeline control</li>
+                    <li>Flow-based node editor</li>
+                    <li>Blockly-style blocks</li>
+                </ul>
+                <a href="animation-comparison.html" class="btn">Compare Animations</a>
+            </div>
+
+            <div class="card" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); color: white;">
+                <h2>📝 Exercise Generator</h2>
+                <p style="opacity: 0.9;">Auto-generate quizzes from traced code - no LLM needed!</p>
+                <ul class="features" style="color: white;">
+                    <li>🎯 Call count quizzes</li>
+                    <li>📊 Return value questions</li>
+                    <li>🔢 Argument tracking</li>
+                    <li>⏱️ Timeline matching</li>
+                    <li>🧩 Execution order (Parsons)</li>
+                </ul>
+                <a href="exercise-generator.html" class="btn" style="background: white; color: #38a169;">Generate Exercises ⚡</a>
+            </div>
+
+            <div class="card" style="grid-column: 1 / -1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h2>🚀 Ultimate Tracer - ALL Visualizations + AI</h2>
+                <p style="opacity: 0.9;">Run code once, see it in 6 different ways with AI explanations!</p>
+                <ul class="features" style="color: white;">
+                    <li>📊 Mermaid diagrams</li>
+                    <li>🎬 Anime.js animations</li>
+                    <li>📈 Call frequency charts</li>
+                    <li>💧 Water flow metaphor</li>
+                    <li>🎭 Story mode</li>
+                    <li>🌳 D3 trees</li>
+                    <li>🤖 AI explains each view!</li>
+                </ul>
+                <a href="ultimate-tracer.html" class="btn" style="background: white; color: #667eea;">Open Ultimate Tracer ⚡</a>
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h2>📚 About This Tool</h2>
+            <p>
+                Interactive code execution tracers that make invisible program execution visible.
+                See every function call, return value, and execution path in real-time.
+            </p>
+            
+            <div class="pattern-diagram">
+                <strong>The Pattern:</strong>
+                <code>Code → Trace → Visualize → Understand → Learn</code>
+            </div>
+            
+            <p>
+                Using existing tools (Python's sys.settrace(), Babel AST transformation) to create
+                powerful educational experiences without custom infrastructure.
+            </p>
+            
+            <h2 style="margin-top: 40px;">🎯 Key Features</h2>
+            <ul style="list-style: none; padding-left: 0;">
+                <li style="padding: 8px 0; padding-left: 28px; position: relative;">
+                    <span style="position: absolute; left: 0; color: #48bb78; font-weight: bold;">✓</span>
+                    <strong>No F12 Needed:</strong> Custom UI replaces browser DevTools
+                </li>
+                <li style="padding: 8px 0; padding-left: 28px; position: relative;">
+                    <span style="position: absolute; left: 0; color: #48bb78; font-weight: bold;">✓</span>
+                    <strong>PWA Ready:</strong> Works offline after first load
+                </li>
+                <li style="padding: 8px 0; padding-left: 28px; position: relative;">
+                    <span style="position: absolute; left: 0; color: #48bb78; font-weight: bold;">✓</span>
+                    <strong>No Server:</strong> All execution happens client-side
+                </li>
+                <li style="padding: 8px 0; padding-left: 28px; position: relative;">
+                    <span style="position: absolute; left: 0; color: #48bb78; font-weight: bold;">✓</span>
+                    <strong>Mobile Friendly:</strong> Works on phones and tablets
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./service-worker.js')
+                .then(() => console.log('PWA: Service Worker registered'))
+                .catch(err => console.log('PWA: Registration failed', err));
+        }
+    </script>
+</body>
+</html>

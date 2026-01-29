@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pyodide Test</title>
+</head>
+<body>
+    <h1>Pyodide Loading Test</h1>
+    <div id="status">Loading...</div>
+    <button id="runBtn" disabled>Run Python</button>
+    <pre id="output"></pre>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script>
+        const status = document.getElementById('status');
+        const output = document.getElementById('output');
+        const runBtn = document.getElementById('runBtn');
+        
+        async function main() {
+            try {
+                status.textContent = 'Step 1: Checking if loadPyodide exists...';
+                output.textContent += 'typeof loadPyodide: ' + typeof loadPyodide + '\n';
+                
+                if (typeof loadPyodide === 'undefined') {
+                    throw new Error('loadPyodide is undefined - script did not load');
+                }
+                
+                status.textContent = 'Step 2: Loading Pyodide...';
+                const pyodide = await loadPyodide();
+                
+                status.textContent = 'Step 3: Testing Python...';
+                const result = await pyodide.runPythonAsync('2 + 2');
+                
+                output.textContent += 'Python result: ' + result + '\n';
+                status.textContent = '✅ SUCCESS! Pyodide works!';
+                runBtn.disabled = false;
+                
+            } catch (error) {
+                status.textContent = '❌ ERROR: ' + error.message;
+                output.textContent += 'Error: ' + error.stack + '\n';
+            }
+        }
+        
+        window.addEventListener('load', main);
+    </script>
+</body>
+</html>

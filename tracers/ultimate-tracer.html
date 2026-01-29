@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Code Tracer - All Visualizations + AI</title>
+    
+    <!-- Libraries -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            display: grid;
+            grid-template-rows: 70px 60px 1fr;
+            height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 { font-size: 20px; font-weight: 700; }
+        .controls {
+            display: flex;
+            gap: 12px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-run { background: #48bb78; color: white; }
+        .btn-run:hover { background: #38a169; }
+        .btn-ai { background: #f59e0b; color: white; }
+        .btn-ai:hover { background: #d97706; }
+        .tabs {
+            background: #2d2d30;
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #3e3e42;
+            overflow-x: auto;
+        }
+        .tab {
+            padding: 15px 25px;
+            background: transparent;
+            border: none;
+            color: #858585;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: #d4d4d4; background: #3e3e42; }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: #252526;
+        }
+        .workspace {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 0;
+            overflow: hidden;
+        }
+        .editor-panel {
+            background: #252526;
+            border-right: 1px solid #3e3e42;
+            display: flex;
+            flex-direction: column;
+        }
+        .code-editor {
+            flex: 1;
+            width: 100%;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            resize: none;
+            outline: none;
+        }
+        .view-panel {
+            background: #1e1e1e;
+            padding: 20px;
+            overflow: auto;
+            display: none;
+        }
+        .view-panel.active { display: block; }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #858585;
+        }
+        .ai-explanation {
+            background: #2d2d30;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .ai-explanation h3 {
+            color: #f59e0b;
+            margin-bottom: 10px;
+        }
+        .mermaid { background: white; padding: 20px; border-radius: 8px; }
+        #d3-viz svg { width: 100%; height: 500px; }
+        .code-block {
+            position: absolute;
+            padding: 15px 20px;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .chart-bar { fill: #667eea; transition: all 0.3s; }
+        .chart-bar:hover { fill: #764ba2; }
+        .water-drop {
+            fill: #4fc3f7;
+            filter: drop-shadow(0 2px 8px rgba(79, 195, 247, 0.5));
+        }
+        .character {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            position: absolute;
+            background: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .speech-bubble {
+            position: absolute;
+            background: white;
+            color: #1e1e1e;
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 14px;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Ultimate Code Tracer - All Visualizations + AI</h1>
+            <div class="controls">
+                <select id="langSelect" style="padding: 10px; border-radius: 8px; border: none; font-weight: 600;">
+                    <option value="js">JavaScript</option>
+                    <option value="python">Python</option>
+                </select>
+                <button class="btn btn-run" onclick="runCode()">▶️ Run & Trace</button>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchView('diagram')">📊 Diagram</button>
+            <button class="tab" onclick="switchView('animation')">🎬 Animation</button>
+            <button class="tab" onclick="switchView('chart')">📈 Chart</button>
+            <button class="tab" onclick="switchView('flow')">💧 Flow</button>
+            <button class="tab" onclick="switchView('story')">🎭 Story</button>
+            <button class="tab" onclick="switchView('tree')">🌳 Tree (D3)</button>
+        </div>
+
+        <div class="workspace">
+            <div class="editor-panel">
+                <textarea class="code-editor" id="codeEditor">function fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+const result = fibonacci(5);
+console.log('Result:', result);</textarea>
+            </div>
+
+            <!-- Diagram View -->
+            <div class="view-panel active" id="view-diagram">
+                <div id="ai-diagram-explanation" class="ai-explanation">
+                    <h3>🤖 AI Explanation</h3>
+                    <div id="ai-diagram-text">Click Generate after running code</div>
+                    <button class="btn btn-ai" onclick="generateDiagramExplanation(document.getElementById('codeEditor').value)" style="margin-top: 10px;">🤖 Generate</button>
+                </div>
+                <div class="mermaid" id="mermaid-output">
+                    <div class="loading">Run code to see diagram</div>
+                </div>
+            </div>
+
+            <!-- Animation View -->
+            <div class="view-panel" id="view-animation">
+                <div id="ai-animation-explanation" class="ai-explanation">
+                    <h3>🤖 AI Explanation</h3>
+                    <div id="ai-animation-text">Click Generate after running code</div>
+                    <button class="btn btn-ai" onclick="generateAnimationExplanation(document.getElementById('codeEditor').value)" style="margin-top: 10px;">🤖 Generate</button>
+                </div>
+                <div id="animation-container" style="position: relative; height: 500px; background: #252526; border-radius: 8px;">
+                    <div class="loading">Run code to see animation</div>
+                </div>
+            </div>
+
+            <!-- Chart View -->
+            <div class="view-panel" id="view-chart">
+                <div id="ai-chart-explanation" class="ai-explanation">
+                    <h3>🤖 AI Explanation</h3>
+                    <div id="ai-chart-text">Click Generate after running code</div>
+                    <button class="btn btn-ai" onclick="generateChartExplanation(document.getElementById('codeEditor').value)" style="margin-top: 10px;">🤖 Generate</button>
+                </div>
+                <svg id="chart-svg" width="100%" height="500">
+                    <text x="50%" y="50%" text-anchor="middle" fill="#858585">Run code to see chart</text>
+                </svg>
+            </div>
+
+            <!-- Flow View -->
+            <div class="view-panel" id="view-flow">
+                <div id="ai-flow-explanation" class="ai-explanation">
+                    <h3>🤖 AI Explanation</h3>
+                    <div id="ai-flow-text">Click Generate after running code</div>
+                    <button class="btn btn-ai" onclick="generateFlowExplanation(document.getElementById('codeEditor').value)" style="margin-top: 10px;">🤖 Generate</button>
+                </div>
+                <svg id="flow-svg" width="100%" height="500">
+                    <text x="50%" y="50%" text-anchor="middle" fill="#858585">Run code to see flow</text>
+                </svg>
+            </div>
+
+            <!-- Story View -->
+            <div class="view-panel" id="view-story">
+                <div id="ai-story-explanation" class="ai-explanation">
+                    <h3>🤖 AI Explanation</h3>
+                    <div id="ai-story-text">Click Generate after running code</div>
+                    <button class="btn btn-ai" onclick="generateStoryExplanation(document.getElementById('codeEditor').value)" style="margin-top: 10px;">🤖 Generate</button>
+                </div>
+                <div id="story-container" style="position: relative; height: 500px; background: #252526; border-radius: 8px;">
+                    <div class="loading">Run code to see story</div>
+                </div>
+            </div>
+
+            <!-- Tree View -->
+            <div class="view-panel" id="view-tree">
+                <div id="ai-tree-explanation" class="ai-explanation">
+                    <h3>🤖 AI Explanation</h3>
+                    <div id="ai-tree-text">Click Generate after running code</div>
+                    <button class="btn btn-ai" onclick="generateTreeExplanation(document.getElementById('codeEditor').value)" style="margin-top: 10px;">🤖 Generate</button>
+                </div>
+                <div id="d3-viz">
+                    <div class="loading">Run code to see tree</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let traceData = [];
+        let currentLang = 'js';
+        let pyodide = null;
+        
+        // API Keys (from your project)
+        const GROQ_API_KEY = process.env.GROQ_API_KEY || 'YOUR_GROQ_API_KEY_HERE';
+        const GOOGLE_API_KEY = 'AIzaSyAnBEeKDLeVSy-udBkSb5BpscX2hGZagtI';
+
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+        // View switching
+        function switchView(view) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`view-${view}`).classList.add('active');
+        }
+
+        // Language switching
+        document.getElementById('langSelect').addEventListener('change', (e) => {
+            currentLang = e.target.value;
+            if (currentLang === 'python') {
+                document.getElementById('codeEditor').value = `def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+result = fibonacci(5)
+print('Result:', result)`;
+            } else {
+                document.getElementById('codeEditor').value = `function fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+const result = fibonacci(5);
+console.log('Result:', result);`;
+            }
+        });
+
+        // Babel plugin for JS tracing
+        function tracePlugin({ types: t }) {
+            return {
+                visitor: {
+                    FunctionDeclaration(path) { instrumentFunction(path, t); },
+                    FunctionExpression(path) { instrumentFunction(path, t); },
+                    ArrowFunctionExpression(path) { instrumentFunction(path, t); }
+                }
+            };
+        }
+
+        function instrumentFunction(path, t) {
+            const funcName = path.node.id?.name || 'anonymous';
+            const params = path.node.params.map(p => p.name || 'arg');
+            const body = path.node.body;
+            if (body.body?.[0]?.expression?.callee?.name === '__traceCall') return;
+            const traceCallNode = t.expressionStatement(
+                t.callExpression(t.identifier('__traceCall'), [
+                    t.stringLiteral(funcName),
+                    t.arrayExpression(params.map(p => t.identifier(p)))
+                ])
+            );
+            path.traverse({
+                ReturnStatement(returnPath) {
+                    const arg = returnPath.node.argument;
+                    returnPath.node.argument = t.callExpression(
+                        t.identifier('__traceReturn'),
+                        [t.stringLiteral(funcName), arg || t.identifier('undefined')]
+                    );
+                }
+            });
+            if (body.type === 'BlockStatement') {
+                body.body.unshift(traceCallNode);
+            }
+        }
+
+        window.__traceCall = function(name, args) {
+            traceData.push({ type: 'call', name, args, timestamp: Date.now() });
+        };
+
+        window.__traceReturn = function(name, value) {
+            traceData.push({ type: 'return', name, value, timestamp: Date.now() });
+            return value;
+        };
+
+        // Run code and capture trace
+        async function runCode() {
+            traceData = [];
+            const code = document.getElementById('codeEditor').value;
+
+            if (currentLang === 'js') {
+                try {
+                    const transformed = Babel.transform(code, { plugins: [tracePlugin] }).code;
+                    eval(transformed);
+                } catch (e) {
+                    alert('Error: ' + e.message);
+                    return;
+                }
+            } else {
+                alert('Python tracing coming soon - use JavaScript for now');
+                return;
+            }
+
+            // Show placeholder message
+            document.getElementById('mermaid-output').innerHTML = '<div class="loading">Click "🤖 AI Explain All" to generate visualizations</div>';
+            document.getElementById('animation-container').innerHTML = '<div class="loading">Click "🤖 AI Explain All" to generate visualizations</div>';
+            document.getElementById('chart-svg').innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#858585">Click "🤖 AI Explain All" to generate visualizations</text>';
+            document.getElementById('flow-svg').innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#858585">Click "🤖 AI Explain All" to generate visualizations</text>';
+            document.getElementById('story-container').innerHTML = '<div class="loading">Click "🤖 AI Explain All" to generate visualizations</div>';
+            document.getElementById('d3-viz').innerHTML = '<div class="loading">Click "🤖 AI Explain All" to generate visualizations</div>';
+        }
+
+        // Generate Mermaid diagram - VISUAL VERSION
+        async function generateDiagram() {
+            const calls = traceData.filter(t => t.type === 'call');
+            if (calls.length === 0) return;
+            
+            const container = document.getElementById('mermaid-output');
+            container.innerHTML = '';
+            
+            // Create SVG visualization
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', '100%');
+            svg.setAttribute('height', '500');
+            svg.style.background = 'white';
+            svg.style.borderRadius = '8px';
+            
+            // Draw as a tree
+            const levels = {};
+            calls.forEach((call, i) => {
+                const level = call.args[0] || 0;
+                if (!levels[level]) levels[level] = [];
+                levels[level].push({ call, index: i });
+            });
+            
+            Object.entries(levels).forEach(([level, nodes], levelIndex) => {
+                nodes.forEach((node, nodeIndex) => {
+                    const x = 100 + nodeIndex * 120;
+                    const y = 80 + levelIndex * 100;
+                    
+                    // Circle
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', x);
+                    circle.setAttribute('cy', y);
+                    circle.setAttribute('r', 40);
+                    circle.setAttribute('fill', `hsl(${levelIndex * 60}, 70%, 60%)`);
+                    circle.setAttribute('stroke', '#fff');
+                    circle.setAttribute('stroke-width', 3);
+                    circle.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))';
+                    svg.appendChild(circle);
+                    
+                    // Text
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', x);
+                    text.setAttribute('y', y + 5);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('fill', '#fff');
+                    text.setAttribute('font-weight', 'bold');
+                    text.setAttribute('font-size', '14');
+                    text.textContent = `${node.call.name}(${node.call.args.join(',')})`;
+                    svg.appendChild(text);
+                    
+                    // Connection to previous
+                    if (node.index > 0) {
+                        const prevLevel = Math.max(0, levelIndex - 1);
+                        const prevNodes = levels[Object.keys(levels)[prevLevel]];
+                        if (prevNodes && prevNodes.length > 0) {
+                            const prevNode = prevNodes[Math.floor(nodeIndex / 2)];
+                            if (prevNode) {
+                                const prevX = 100 + prevNodes.indexOf(prevNode) * 120;
+                                const prevY = 80 + prevLevel * 100;
+                                
+                                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                                line.setAttribute('x1', prevX);
+                                line.setAttribute('y1', prevY + 40);
+                                line.setAttribute('x2', x);
+                                line.setAttribute('y2', y - 40);
+                                line.setAttribute('stroke', '#999');
+                                line.setAttribute('stroke-width', 3);
+                                svg.insertBefore(line, svg.firstChild);
+                            }
+                        }
+                    }
+                });
+            });
+            
+            container.appendChild(svg);
+            
+            // Animate
+            anime({
+                targets: svg.querySelectorAll('circle, text'),
+                opacity: [0, 1],
+                scale: [0.5, 1],
+                delay: anime.stagger(100),
+                duration: 600,
+                easing: 'easeOutElastic(1, .8)'
+            });
+        }
+
+        // Generate animation
+        function generateAnimation() {
+            const container = document.getElementById('animation-container');
+            container.innerHTML = '';
+            
+            traceData.filter(t => t.type === 'call').forEach((call, i) => {
+                const block = document.createElement('div');
+                block.className = 'code-block';
+                block.textContent = `${call.name}(${call.args.join(',')})`;
+                block.style.left = '20px';
+                block.style.top = `${20 + i * 70}px`;
+                block.style.opacity = '0';
+                container.appendChild(block);
+            });
+
+            anime({
+                targets: '.code-block',
+                opacity: 1,
+                translateX: [0, 200],
+                delay: anime.stagger(300),
+                duration: 800,
+                easing: 'easeOutQuad'
+            });
+        }
+
+        // Generate chart - COLORFUL VERSION
+        function generateChart() {
+            const svg = document.getElementById('chart-svg');
+            svg.innerHTML = '';
+            
+            const counts = {};
+            traceData.filter(t => t.type === 'call').forEach(call => {
+                counts[call.name] = (counts[call.name] || 0) + 1;
+            });
+
+            const entries = Object.entries(counts);
+            if (entries.length === 0) return;
+            
+            const maxCount = Math.max(...entries.map(([,c]) => c));
+            const colors = ['#667eea', '#48bb78', '#f59e0b', '#ef4444', '#8b5cf6'];
+            
+            // Background gradient
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            entries.forEach((_, i) => {
+                const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+                gradient.setAttribute('id', `grad${i}`);
+                gradient.setAttribute('x1', '0%');
+                gradient.setAttribute('y1', '0%');
+                gradient.setAttribute('x2', '0%');
+                gradient.setAttribute('y2', '100%');
+                
+                const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                stop1.setAttribute('offset', '0%');
+                stop1.setAttribute('stop-color', colors[i % colors.length]);
+                stop1.setAttribute('stop-opacity', '1');
+                
+                const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                stop2.setAttribute('offset', '100%');
+                stop2.setAttribute('stop-color', colors[i % colors.length]);
+                stop2.setAttribute('stop-opacity', '0.6');
+                
+                gradient.appendChild(stop1);
+                gradient.appendChild(stop2);
+                defs.appendChild(gradient);
+            });
+            svg.appendChild(defs);
+            
+            const barWidth = 100;
+            const spacing = 140;
+            const startX = 100;
+            
+            entries.forEach(([name, count], i) => {
+                const height = (count / maxCount) * 300;
+                const x = startX + i * spacing;
+                const y = 450 - height;
+                
+                // Bar with gradient
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', x);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', barWidth);
+                rect.setAttribute('height', height);
+                rect.setAttribute('rx', 8);
+                rect.setAttribute('fill', `url(#grad${i})`);
+                rect.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))';
+                svg.appendChild(rect);
+                
+                // Count badge
+                const badge = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                badge.setAttribute('cx', x + barWidth/2);
+                badge.setAttribute('cy', y - 20);
+                badge.setAttribute('r', 20);
+                badge.setAttribute('fill', colors[i % colors.length]);
+                badge.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+                svg.appendChild(badge);
+                
+                const countText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                countText.setAttribute('x', x + barWidth/2);
+                countText.setAttribute('y', y - 15);
+                countText.setAttribute('text-anchor', 'middle');
+                countText.setAttribute('fill', '#fff');
+                countText.setAttribute('font-weight', 'bold');
+                countText.setAttribute('font-size', '16');
+                countText.textContent = count;
+                svg.appendChild(countText);
+                
+                // Name
+                const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                nameText.setAttribute('x', x + barWidth/2);
+                nameText.setAttribute('y', 480);
+                nameText.setAttribute('text-anchor', 'middle');
+                nameText.setAttribute('fill', '#d4d4d4');
+                nameText.setAttribute('font-weight', 'bold');
+                nameText.setAttribute('font-size', '14');
+                nameText.textContent = name;
+                svg.appendChild(nameText);
+            });
+            
+            // Animate bars growing
+            anime({
+                targets: svg.querySelectorAll('rect'),
+                height: (el) => el.getAttribute('height'),
+                y: (el) => el.getAttribute('y'),
+                duration: 1200,
+                delay: anime.stagger(150),
+                easing: 'easeOutElastic(1, .6)'
+            });
+        }
+
+        // Generate flow - ANIMATED WATER
+        function generateFlow() {
+            const svg = document.getElementById('flow-svg');
+            svg.innerHTML = '';
+            
+            const calls = traceData.filter(t => t.type === 'call');
+            if (calls.length === 0) return;
+            
+            // Defs
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'flow-arrow');
+            marker.setAttribute('markerWidth', 10);
+            marker.setAttribute('markerHeight', 10);
+            marker.setAttribute('refX', 9);
+            marker.setAttribute('refY', 3);
+            marker.setAttribute('orient', 'auto');
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 10 3, 0 6');
+            polygon.setAttribute('fill', '#4fc3f7');
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+            
+            const nodeHeight = 100;
+            const spacing = 130;
+            const colors = ['#667eea', '#48bb78', '#f59e0b', '#ef4444'];
+            
+            calls.slice(0, 4).forEach((call, i) => {
+                const y = 50 + i * spacing;
+                
+                // Animated pipe
+                if (i > 0) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', 250);
+                    line.setAttribute('y1', y - spacing + nodeHeight);
+                    line.setAttribute('x2', 250);
+                    line.setAttribute('y2', y);
+                    line.setAttribute('stroke', '#4fc3f7');
+                    line.setAttribute('stroke-width', 12);
+                    line.setAttribute('stroke-linecap', 'round');
+                    line.setAttribute('marker-end', 'url(#flow-arrow)');
+                    line.style.filter = 'drop-shadow(0 2px 8px rgba(79, 195, 247, 0.4))';
+                    svg.appendChild(line);
+                    
+                    // Water drops
+                    for (let d = 0; d < 3; d++) {
+                        const drop = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        drop.setAttribute('cx', 250);
+                        drop.setAttribute('cy', y - spacing + nodeHeight);
+                        drop.setAttribute('r', 6);
+                        drop.setAttribute('fill', '#4fc3f7');
+                        drop.style.filter = 'drop-shadow(0 2px 4px rgba(79, 195, 247, 0.6))';
+                        svg.appendChild(drop);
+                        
+                        anime({
+                            targets: drop,
+                            cy: y,
+                            duration: 1500,
+                            delay: i * 1000 + d * 200,
+                            easing: 'linear',
+                            loop: true
+                        });
+                    }
+                }
+                
+                // Node with gradient
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', 150);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', 200);
+                rect.setAttribute('height', nodeHeight);
+                rect.setAttribute('rx', 16);
+                rect.setAttribute('fill', colors[i % colors.length]);
+                rect.setAttribute('stroke', '#fff');
+                rect.setAttribute('stroke-width', 4);
+                rect.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))';
+                svg.appendChild(rect);
+                
+                // Icon
+                const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                icon.setAttribute('x', 180);
+                icon.setAttribute('y', y + nodeHeight/2 + 10);
+                icon.setAttribute('fill', '#fff');
+                icon.setAttribute('font-size', '32');
+                icon.textContent = ['📥', '⚙️', '🔄', '📤'][i];
+                svg.appendChild(icon);
+                
+                // Text
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', 220);
+                text.setAttribute('y', y + nodeHeight/2 + 6);
+                text.setAttribute('fill', '#fff');
+                text.setAttribute('font-weight', 'bold');
+                text.setAttribute('font-size', '14');
+                text.textContent = `${call.name}(${call.args.join(',')})`;
+                svg.appendChild(text);
+            });
+        }
+
+        // Generate story
+        function generateStory() {
+            const container = document.getElementById('story-container');
+            container.innerHTML = '';
+            
+            const calls = traceData.filter(t => t.type === 'call').slice(0, 3);
+            
+            calls.forEach((call, i) => {
+                const y = 50 + i * 150;
+                
+                // Character
+                const char = document.createElement('div');
+                char.className = 'character';
+                char.style.left = '50px';
+                char.style.top = y + 'px';
+                char.textContent = ['🤖', '🧮', '✅'][i];
+                container.appendChild(char);
+                
+                // Speech bubble
+                const bubble = document.createElement('div');
+                bubble.className = 'speech-bubble';
+                bubble.style.left = '150px';
+                bubble.style.top = y + 'px';
+                bubble.style.opacity = '0';
+                bubble.textContent = [
+                    `I need to calculate ${call.name}(${call.args.join(',')})!`,
+                    `Breaking it down into smaller pieces...`,
+                    `Got the result!`
+                ][i];
+                container.appendChild(bubble);
+                
+                // Animate
+                setTimeout(() => {
+                    anime({
+                        targets: bubble,
+                        opacity: 1,
+                        translateX: [20, 0],
+                        duration: 500,
+                        easing: 'easeOutQuad'
+                    });
+                }, i * 1000);
+            });
+        }
+
+        // Generate D3 tree
+        function generateTree() {
+            const container = document.getElementById('d3-viz');
+            container.innerHTML = '';
+            
+            // Build tree data from trace
+            const calls = traceData.filter(t => t.type === 'call');
+            if (calls.length === 0) {
+                container.innerHTML = '<div class="loading">No tree data</div>';
+                return;
+            }
+            
+            // Simple tree structure
+            const treeData = {
+                name: calls[0].name + '(' + calls[0].args.join(',') + ')',
+                children: calls.slice(1, 3).map(c => ({
+                    name: c.name + '(' + c.args.join(',') + ')',
+                    children: calls.slice(3, 5).map(c2 => ({
+                        name: c2.name + '(' + c2.args.join(',') + ')'
+                    }))
+                }))
+            };
+            
+            const width = 800;
+            const height = 500;
+            
+            const svg = d3.select(container)
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+            
+            const g = svg.append('g')
+                .attr('transform', 'translate(50,50)');
+            
+            const tree = d3.tree().size([width - 100, height - 100]);
+            const root = d3.hierarchy(treeData);
+            tree(root);
+            
+            // Links
+            g.selectAll('.link')
+                .data(root.links())
+                .enter()
+                .append('path')
+                .attr('class', 'link')
+                .attr('fill', 'none')
+                .attr('stroke', '#858585')
+                .attr('stroke-width', 2)
+                .attr('d', d3.linkVertical()
+                    .x(d => d.x)
+                    .y(d => d.y));
+            
+            // Nodes
+            const node = g.selectAll('.node')
+                .data(root.descendants())
+                .enter()
+                .append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+            
+            node.append('circle')
+                .attr('r', 30)
+                .attr('fill', d => d.children ? '#667eea' : '#48bb78')
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 3);
+            
+            node.append('text')
+                .attr('dy', 5)
+                .attr('text-anchor', 'middle')
+                .attr('fill', 'white')
+                .attr('font-size', '12px')
+                .attr('font-weight', '600')
+                .text(d => d.data.name.split('(')[0]);
+        }
+
+        // AI Explanation Generation (removed - now per-view buttons)
+
+        async function generateDiagramExplanation(code) {
+            const counts = {};
+            traceData.filter(t => t.type === 'call').forEach(call => {
+                counts[call.name] = (counts[call.name] || 0) + 1;
+            });
+
+            const prompt = `You are a creative visual designer. Design a UNIQUE diagram layout.
+
+CODE:
+${code}
+
+TRACE:
+${JSON.stringify(traceData.slice(0, 12).filter(t => t.type === 'call'), null, 2)}
+
+Create a JSON array with CREATIVE positioning (max 12 nodes):
+[
+  {
+    "x": number between 100-700,
+    "y": number between 50-400,
+    "radius": number between 25-60,
+    "color": pick from ["#667eea", "#48bb78", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"],
+    "label": "function_name(args)",
+    "connectTo": index_of_previous_node_or_null
+  }
+]
+
+BE CREATIVE with layout - spiral, tree, circular, whatever looks cool!
+Return ONLY the JSON array, no markdown, no explanation.`;
+
+            try {
+                const response = await callGroqAPI(prompt, true); // Force JSON mode
+                console.log('AI Diagram Response:', response);
+                let jsonStr = response.trim();
+                
+                // Aggressive JSON extraction
+                if (jsonStr.includes('```')) {
+                    jsonStr = jsonStr.split('```')[1].replace(/json/g, '').trim();
+                }
+                if (jsonStr.includes('[')) {
+                    jsonStr = jsonStr.substring(jsonStr.indexOf('['));
+                }
+                if (jsonStr.includes(']')) {
+                    jsonStr = jsonStr.substring(0, jsonStr.lastIndexOf(']') + 1);
+                }
+                
+                console.log('Extracted JSON:', jsonStr);
+                const nodes = JSON.parse(jsonStr);
+                
+                // Draw AI-designed diagram
+                const container = document.getElementById('mermaid-output');
+                container.innerHTML = '';
+                
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('width', '100%');
+                svg.setAttribute('height', '500');
+                svg.style.background = 'white';
+                svg.style.borderRadius = '8px';
+                
+                nodes.slice(0, 12).forEach((node, i) => {
+                    // Connection
+                    if (node.connectTo !== null && node.connectTo < i) {
+                        const prevNode = nodes[node.connectTo];
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', prevNode.x);
+                        line.setAttribute('y1', prevNode.y);
+                        line.setAttribute('x2', node.x);
+                        line.setAttribute('y2', node.y);
+                        line.setAttribute('stroke', '#999');
+                        line.setAttribute('stroke-width', 3);
+                        svg.appendChild(line);
+                    }
+                    
+                    // Circle
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', node.x);
+                    circle.setAttribute('cy', node.y);
+                    circle.setAttribute('r', node.radius || 40);
+                    circle.setAttribute('fill', node.color);
+                    circle.setAttribute('stroke', '#fff');
+                    circle.setAttribute('stroke-width', 3);
+                    circle.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))';
+                    svg.appendChild(circle);
+                    
+                    // Text
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', node.x);
+                    text.setAttribute('y', node.y + 5);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('fill', '#fff');
+                    text.setAttribute('font-weight', 'bold');
+                    text.setAttribute('font-size', '12');
+                    text.textContent = node.label;
+                    svg.appendChild(text);
+                });
+                
+                container.appendChild(svg);
+                
+                anime({
+                    targets: svg.querySelectorAll('circle, text'),
+                    opacity: [0, 1],
+                    scale: [0.5, 1],
+                    delay: anime.stagger(100),
+                    duration: 600,
+                    easing: 'easeOutElastic(1, .8)'
+                });
+                
+                document.getElementById('ai-diagram-text').innerHTML = '<strong>🤖 AI Designed This Layout!</strong><br>AI chose positions, colors, and connections.';
+            } catch (e) {
+                console.error('Diagram error:', e);
+                const container = document.getElementById('mermaid-output');
+                container.innerHTML = `<div style="color: #f56565; padding: 40px; text-align: center;">
+                    <strong>AI generation failed</strong><br>
+                    Check console for details
+                </div>`;
+                document.getElementById('ai-diagram-text').innerHTML = '<strong>⚠️ AI failed</strong><br>Error: ' + e.message;
+            }
+        }
+
+        async function generateAnimationExplanation(code) {
+            const prompt = `Create animation instructions for this code:
+
+CODE:
+${code}
+
+TRACE (first 8 calls):
+${JSON.stringify(traceData.slice(0, 8).filter(t => t.type === 'call'), null, 2)}
+
+Generate JSON array (max 6 steps):
+[
+  {"label": "func(args)", "x": 20-400, "y": 20-400, "delay": 0-2000, "color": "#667eea"}
+]
+
+Return ONLY the JSON array.`;
+
+            try {
+                const response = await callGroqAPI(prompt, true); // Force JSON
+                let jsonStr = response.trim();
+                
+                // Extract JSON
+                if (jsonStr.includes('[')) {
+                    jsonStr = jsonStr.substring(jsonStr.indexOf('['));
+                    jsonStr = jsonStr.substring(0, jsonStr.lastIndexOf(']') + 1);
+                }
+                
+                const steps = JSON.parse(jsonStr);
+                
+                const container = document.getElementById('animation-container');
+                container.innerHTML = '';
+                
+                steps.slice(0, 6).forEach((step, i) => {
+                    const block = document.createElement('div');
+                    block.className = 'code-block';
+                    block.textContent = step.label;
+                    block.style.left = step.x + 'px';
+                    block.style.top = step.y + 'px';
+                    block.style.background = step.color || '#667eea';
+                    block.style.opacity = '0';
+                    container.appendChild(block);
+                    
+                    setTimeout(() => {
+                        anime({
+                            targets: block,
+                            opacity: 1,
+                            scale: [0.8, 1],
+                            duration: 600,
+                            easing: 'easeOutElastic(1, .8)'
+                        });
+                    }, step.delay || i * 400);
+                });
+                
+                document.getElementById('ai-animation-text').innerHTML = '<strong>🤖 AI Generated</strong><br>Animation shows execution flow!';
+            } catch (e) {
+                console.error('Animation error:', e);
+                document.getElementById('ai-animation-text').innerHTML = '<strong>🤖 AI Analysis</strong><br>Animation shows step-by-step execution.';
+                generateAnimation();
+            }
+        }
+
+        async function generateChartExplanation(code) {
+            const counts = {};
+            traceData.filter(t => t.type === 'call').forEach(call => {
+                counts[call.name] = (counts[call.name] || 0) + 1;
+            });
+
+            const prompt = `You are a data visualization designer. Create a colorful chart design.
+
+CODE:
+${code}
+
+CALL FREQUENCY:
+${JSON.stringify(counts, null, 2)}
+
+Generate JSON array for bars:
+[
+  {
+    "name": "function_name",
+    "count": number,
+    "color": "#667eea or #48bb78 or #f59e0b or #ef4444 or #8b5cf6",
+    "x": 100-600,
+    "barWidth": 80-120
+  }
+]
+
+Make it visually striking with varied colors and widths. Return ONLY JSON.`;
+
+            try {
+                const response = await callGroqAPI(prompt, true); // Force JSON
+                let jsonStr = response.trim();
+                
+                if (jsonStr.includes('[')) {
+                    jsonStr = jsonStr.substring(jsonStr.indexOf('['));
+                    jsonStr = jsonStr.substring(0, jsonStr.lastIndexOf(']') + 1);
+                }
+                
+                const bars = JSON.parse(jsonStr);
+                
+                // Draw AI-designed chart
+                const svg = document.getElementById('chart-svg');
+                svg.innerHTML = '';
+                
+                const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                bars.forEach((bar, i) => {
+                    const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+                    gradient.setAttribute('id', `aigrad${i}`);
+                    gradient.setAttribute('x1', '0%');
+                    gradient.setAttribute('y1', '0%');
+                    gradient.setAttribute('x2', '0%');
+                    gradient.setAttribute('y2', '100%');
+                    
+                    const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                    stop1.setAttribute('offset', '0%');
+                    stop1.setAttribute('stop-color', bar.color);
+                    stop1.setAttribute('stop-opacity', '1');
+                    
+                    const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                    stop2.setAttribute('offset', '100%');
+                    stop2.setAttribute('stop-color', bar.color);
+                    stop2.setAttribute('stop-opacity', '0.6');
+                    
+                    gradient.appendChild(stop1);
+                    gradient.appendChild(stop2);
+                    defs.appendChild(gradient);
+                });
+                svg.appendChild(defs);
+                
+                const maxCount = Math.max(...bars.map(b => b.count));
+                
+                bars.forEach((bar, i) => {
+                    const height = (bar.count / maxCount) * 300;
+                    const y = 450 - height;
+                    
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', bar.x);
+                    rect.setAttribute('y', y);
+                    rect.setAttribute('width', bar.barWidth || 100);
+                    rect.setAttribute('height', height);
+                    rect.setAttribute('rx', 8);
+                    rect.setAttribute('fill', `url(#aigrad${i})`);
+                    rect.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))';
+                    svg.appendChild(rect);
+                    
+                    const badge = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    badge.setAttribute('cx', bar.x + (bar.barWidth || 100)/2);
+                    badge.setAttribute('cy', y - 20);
+                    badge.setAttribute('r', 20);
+                    badge.setAttribute('fill', bar.color);
+                    svg.appendChild(badge);
+                    
+                    const countText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    countText.setAttribute('x', bar.x + (bar.barWidth || 100)/2);
+                    countText.setAttribute('y', y - 15);
+                    countText.setAttribute('text-anchor', 'middle');
+                    countText.setAttribute('fill', '#fff');
+                    countText.setAttribute('font-weight', 'bold');
+                    countText.textContent = bar.count;
+                    svg.appendChild(countText);
+                    
+                    const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    nameText.setAttribute('x', bar.x + (bar.barWidth || 100)/2);
+                    nameText.setAttribute('y', 480);
+                    nameText.setAttribute('text-anchor', 'middle');
+                    nameText.setAttribute('fill', '#d4d4d4');
+                    nameText.setAttribute('font-weight', 'bold');
+                    nameText.textContent = bar.name;
+                    svg.appendChild(nameText);
+                });
+                
+                anime({
+                    targets: svg.querySelectorAll('rect'),
+                    height: (el) => el.getAttribute('height'),
+                    y: (el) => el.getAttribute('y'),
+                    duration: 1200,
+                    delay: anime.stagger(150),
+                    easing: 'easeOutElastic(1, .6)'
+                });
+                
+                document.getElementById('ai-chart-text').innerHTML = '<strong>🤖 AI Designed This Chart!</strong><br>AI chose colors, positions, and bar widths.';
+            } catch (e) {
+                console.error('Chart error:', e);
+                document.getElementById('chart-svg').innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f56565">AI generation failed - check console</text>`;
+                document.getElementById('ai-chart-text').innerHTML = '<strong>⚠️ AI failed</strong><br>Error: ' + e.message;
+            }
+        }
+
+        async function generateFlowExplanation(code) {
+            const prompt = `You are a creative flow designer. Design a UNIQUE water flow visualization.
+
+CODE:
+${code}
+
+TRACE:
+${JSON.stringify(traceData.slice(0, 4).filter(t => t.type === 'call'), null, 2)}
+
+Create JSON (max 4 nodes):
+[
+  {
+    "x": number 100-350,
+    "y": number 50-400,
+    "width": number 150-250,
+    "height": number 70-130,
+    "color": pick from ["#667eea", "#48bb78", "#f59e0b", "#ef4444", "#8b5cf6"],
+    "icon": pick from ["📥", "⚙️", "🔄", "📤", "💫", "🎯", "🔥"],
+    "label": "function_name(args)"
+  }
+]
+
+BE CREATIVE - vary sizes, colors, positions!
+Return ONLY JSON array, no markdown.`;
+
+            try {
+                const response = await callGroqAPI(prompt, true); // Force JSON
+                console.log('AI Flow Response:', response);
+                let jsonStr = response.trim();
+                
+                if (jsonStr.includes('```')) {
+                    jsonStr = jsonStr.split('```')[1].replace(/json/g, '').trim();
+                }
+                if (jsonStr.includes('[')) {
+                    jsonStr = jsonStr.substring(jsonStr.indexOf('['));
+                    jsonStr = jsonStr.substring(0, jsonStr.lastIndexOf(']') + 1);
+                }
+                
+                console.log('Extracted JSON:', jsonStr);
+                const nodes = JSON.parse(jsonStr);
+                
+                // Draw AI-designed flow
+                const svg = document.getElementById('flow-svg');
+                svg.innerHTML = '';
+                
+                nodes.slice(0, 4).forEach((node, i) => {
+                    // Pipe with water drops
+                    if (i > 0) {
+                        const prevNode = nodes[i-1];
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', node.x + node.width/2);
+                        line.setAttribute('y1', prevNode.y + prevNode.height);
+                        line.setAttribute('x2', node.x + node.width/2);
+                        line.setAttribute('y2', node.y);
+                        line.setAttribute('stroke', '#4fc3f7');
+                        line.setAttribute('stroke-width', 12);
+                        line.setAttribute('stroke-linecap', 'round');
+                        line.style.filter = 'drop-shadow(0 2px 8px rgba(79, 195, 247, 0.4))';
+                        svg.appendChild(line);
+                        
+                        // Animated drops
+                        for (let d = 0; d < 2; d++) {
+                            const drop = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                            drop.setAttribute('cx', node.x + node.width/2);
+                            drop.setAttribute('cy', prevNode.y + prevNode.height);
+                            drop.setAttribute('r', 6);
+                            drop.setAttribute('fill', '#4fc3f7');
+                            svg.appendChild(drop);
+                            
+                            anime({
+                                targets: drop,
+                                cy: node.y,
+                                duration: 1500,
+                                delay: i * 1000 + d * 300,
+                                easing: 'linear',
+                                loop: true
+                            });
+                        }
+                    }
+                    
+                    // Node
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', node.x);
+                    rect.setAttribute('y', node.y);
+                    rect.setAttribute('width', node.width);
+                    rect.setAttribute('height', node.height);
+                    rect.setAttribute('rx', 16);
+                    rect.setAttribute('fill', node.color);
+                    rect.setAttribute('stroke', '#fff');
+                    rect.setAttribute('stroke-width', 4);
+                    rect.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))';
+                    svg.appendChild(rect);
+                    
+                    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    icon.setAttribute('x', node.x + 30);
+                    icon.setAttribute('y', node.y + node.height/2 + 10);
+                    icon.setAttribute('font-size', '32');
+                    icon.textContent = node.icon;
+                    svg.appendChild(icon);
+                    
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', node.x + 70);
+                    text.setAttribute('y', node.y + node.height/2 + 6);
+                    text.setAttribute('fill', '#fff');
+                    text.setAttribute('font-weight', 'bold');
+                    text.textContent = node.label;
+                    svg.appendChild(text);
+                });
+                
+                document.getElementById('ai-flow-text').innerHTML = '<strong>🤖 AI Designed This Flow!</strong><br>AI chose layout, colors, and icons.';
+            } catch (e) {
+                console.error('Flow error:', e);
+                document.getElementById('flow-svg').innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f56565">AI generation failed - check console</text>`;
+                document.getElementById('ai-flow-text').innerHTML = '<strong>⚠️ AI failed</strong><br>Error: ' + e.message;
+            }
+        }
+
+        async function generateStoryExplanation(code) {
+            const prompt = `Create a story for this code:
+
+CODE:
+${code}
+
+FIRST 3 CALLS:
+${JSON.stringify(traceData.slice(0, 3).filter(t => t.type === 'call'), null, 2)}
+
+Generate JSON array (3 beats):
+[
+  {"character": "🤖", "dialogue": "short fun text", "x": 50-300, "y": 50-300}
+]
+
+Return ONLY JSON.`;
+
+            try {
+                const response = await callGroqAPI(prompt, true); // Force JSON
+                let jsonStr = response.trim();
+                
+                if (jsonStr.includes('[')) {
+                    jsonStr = jsonStr.substring(jsonStr.indexOf('['));
+                    jsonStr = jsonStr.substring(0, jsonStr.lastIndexOf(']') + 1);
+                }
+                
+                const beats = JSON.parse(jsonStr);
+                
+                const container = document.getElementById('story-container');
+                container.innerHTML = '';
+                
+                beats.slice(0, 3).forEach((beat, i) => {
+                    const char = document.createElement('div');
+                    char.className = 'character';
+                    char.style.left = beat.x + 'px';
+                    char.style.top = beat.y + 'px';
+                    char.style.opacity = '0';
+                    char.textContent = beat.character;
+                    container.appendChild(char);
+                    
+                    const bubble = document.createElement('div');
+                    bubble.className = 'speech-bubble';
+                    bubble.style.left = (beat.x + 100) + 'px';
+                    bubble.style.top = beat.y + 'px';
+                    bubble.style.opacity = '0';
+                    bubble.textContent = beat.dialogue;
+                    container.appendChild(bubble);
+                    
+                    setTimeout(() => {
+                        anime({
+                            targets: [char, bubble],
+                            opacity: 1,
+                            translateY: [-20, 0],
+                            duration: 500,
+                            delay: anime.stagger(100),
+                            easing: 'easeOutQuad'
+                        });
+                    }, i * 1500);
+                });
+                
+                document.getElementById('ai-story-text').innerHTML = '<strong>🤖 AI Generated</strong><br>Story brings code to life!';
+            } catch (e) {
+                console.error('Story error:', e);
+                document.getElementById('ai-story-text').innerHTML = '<strong>🤖 AI Analysis</strong><br>Story mode shows code narrative.';
+                generateStory();
+            }
+        }
+
+        async function generateTreeExplanation(code) {
+            const prompt = `Explain recursion in this code:
+
+CODE:
+${code}
+
+Explain in 2-3 sentences:
+1. How the tree structure represents recursion
+2. What the branches mean
+3. Why this helps understanding`;
+
+            const response = await callGroqAPI(prompt);
+            document.getElementById('ai-tree-text').innerHTML = '<strong>🤖 AI Analysis</strong><br>' + response.replace(/\n/g, '<br>');
+        }
+
+        // Groq API call
+        async function callGroqAPI(prompt, forceJSON = false, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const messages = forceJSON 
+                        ? [
+                            { role: 'system', content: 'You are a JSON generator. You ONLY output valid JSON. Never include explanations, markdown, or any text outside the JSON structure.' },
+                            { role: 'user', content: prompt }
+                        ]
+                        : [{ role: 'user', content: prompt }];
+                    
+                    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: 'llama-3.3-70b-versatile',
+                            messages,
+                            temperature: forceJSON ? 0.9 : 1.2,
+                            max_tokens: 500,
+                            top_p: 0.95
+                        })
+                    });
+
+                    if (response.status === 429 && i < retries - 1) {
+                        const delay = Math.pow(2, i) * 5000; // 5s, 10s, 20s
+                        console.log(`Rate limited. Retrying in ${delay/1000}s...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.error('Groq API error response:', errorData);
+                        throw new Error(`API error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (!data.choices || !data.choices[0]) {
+                        console.error('Unexpected API response:', data);
+                        throw new Error('Invalid API response format');
+                    }
+                    
+                    return data.choices[0].message.content;
+                } catch (error) {
+                    if (i === retries - 1) {
+                        console.error('Groq API error:', error);
+                        return 'AI explanation temporarily unavailable. The trace data shows the execution flow above.';
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

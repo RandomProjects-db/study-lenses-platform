@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript Execution Tracer</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            background: #1e1e1e;
+        }
+        .container {
+            display: grid;
+            grid-template-rows: 70px 1fr;
+            height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .header h1 { font-size: 20px; font-weight: 700; }
+        .controls { display: flex; gap: 12px; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-run { background: #48bb78; color: white; }
+        .btn-run:hover { background: #38a169; transform: translateY(-2px); }
+        .btn-clear { background: #f56565; color: white; }
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 350px;
+            gap: 0;
+            background: #1e1e1e;
+        }
+        .panel {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            background: #2d2d30;
+            color: #cccccc;
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid #3e3e42;
+        }
+        .panel-content { flex: 1; overflow: auto; }
+        .code-editor {
+            width: 100%;
+            height: 100%;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            resize: none;
+            outline: none;
+        }
+        .output {
+            background: #1e1e1e;
+            color: #cccccc;
+            padding: 20px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            height: 100%;
+            overflow-y: auto;
+        }
+        .console-line { margin: 4px 0; padding: 4px 8px; }
+        .console-log { color: #4fc3f7; }
+        .console-error { 
+            color: #f44336; 
+            background: rgba(244, 67, 54, 0.1);
+            border-left: 3px solid #f44336;
+            padding-left: 8px;
+        }
+        .trace-container { grid-column: 1 / -1; }
+        .trace-output {
+            padding: 20px;
+            background: #1e1e1e;
+            height: 100%;
+            overflow-y: auto;
+        }
+        .trace-item {
+            background: #2d2d30;
+            margin: 6px 0;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 4px solid #4fc3f7;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            color: #cccccc;
+            line-height: 1.6;
+        }
+        .trace-call { border-left-color: #66bb6a; }
+        .trace-return { border-left-color: #ffa726; }
+        .trace-meta {
+            color: #858585;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+        .stats {
+            background: #2d2d30;
+            padding: 15px 20px;
+            display: flex;
+            gap: 25px;
+            font-size: 13px;
+            border-bottom: 1px solid #3e3e42;
+        }
+        .stat { display: flex; gap: 8px; }
+        .stat-label { color: #858585; }
+        .stat-value { color: #4fc3f7; font-weight: 700; }
+        .indent-0 { margin-left: 0; }
+        .indent-1 { margin-left: 25px; }
+        .indent-2 { margin-left: 50px; }
+        .indent-3 { margin-left: 75px; }
+        .indent-4 { margin-left: 100px; }
+        .indent-5 { margin-left: 125px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ JavaScript Execution Tracer</h1>
+            <div class="controls">
+                <button class="btn btn-run" onclick="runCode()">▶️ Run with Trace</button>
+                <button class="btn btn-clear" onclick="clearAll()">🗑️ Clear All</button>
+            </div>
+        </div>
+        
+        <div class="workspace">
+            <div class="panel">
+                <div class="panel-header">📝 JavaScript Code (Automatic Tracing!)</div>
+                <div class="panel-content">
+                    <textarea class="code-editor" id="codeEditor">// Write normal JavaScript - automatic tracing!
+function fibonacci(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+function factorial(n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+// Test
+console.log('fibonacci(5):', fibonacci(5));
+console.log('factorial(5):', factorial(5));</textarea>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">💬 Console Output</div>
+                <div class="stats">
+                    <div class="stat">
+                        <span class="stat-label">Logs:</span>
+                        <span class="stat-value" id="logCount">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Time:</span>
+                        <span class="stat-value" id="execTime">0ms</span>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="output" id="consoleOutput">
+                        <div class="console-line" style="color: #858585;">
+                            Ready! Click "Run with Trace"
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel trace-container">
+                <div class="panel-header">🔍 Execution Trace</div>
+                <div class="stats">
+                    <div class="stat">
+                        <span class="stat-label">Calls:</span>
+                        <span class="stat-value" id="callCount">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Returns:</span>
+                        <span class="stat-value" id="returnCount">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Max Depth:</span>
+                        <span class="stat-value" id="maxDepth">0</span>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="trace-output" id="traceOutput">
+                        <div style="color: #858585; text-align: center; padding: 40px;">
+                            Click Run to see every function call!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let traceStats = {
+            calls: 0,
+            returns: 0,
+            maxDepth: 0,
+            logs: 0,
+            startTime: 0
+        };
+        
+        let callStack = [];
+        
+        function addConsole(message, type) {
+            const output = document.getElementById('consoleOutput');
+            const line = document.createElement('div');
+            line.className = 'console-line console-' + type;
+            line.textContent = message;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+            
+            traceStats.logs++;
+            document.getElementById('logCount').textContent = traceStats.logs;
+        }
+        
+        function addTrace(message, type, depth) {
+            const output = document.getElementById('traceOutput');
+            const item = document.createElement('div');
+            item.className = 'trace-item trace-' + type + ' indent-' + Math.min(depth, 5);
+            
+            const icon = type === 'call' ? '→' : '←';
+            const timestamp = Date.now() - traceStats.startTime;
+            
+            item.innerHTML = `
+                <div>${icon} ${message}</div>
+                <div class="trace-meta">${timestamp}ms | depth: ${depth}</div>
+            `;
+            
+            output.appendChild(item);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function trace(fn, name) {
+            return function() {
+                const args = Array.from(arguments);
+                const depth = callStack.length;
+                
+                traceStats.calls++;
+                traceStats.maxDepth = Math.max(traceStats.maxDepth, depth);
+                callStack.push(name);
+                
+                const argsStr = args.map(a => JSON.stringify(a)).join(', ');
+                addTrace('CALL ' + name + '(' + argsStr + ')', 'call', depth);
+                
+                let result;
+                try {
+                    result = fn.apply(this, args);
+                } catch (e) {
+                    callStack.pop();
+                    throw e;
+                }
+                
+                traceStats.returns++;
+                addTrace('RETURN ' + name + '() → ' + JSON.stringify(result), 'return', depth);
+                
+                callStack.pop();
+                
+                document.getElementById('callCount').textContent = traceStats.calls;
+                document.getElementById('returnCount').textContent = traceStats.returns;
+                document.getElementById('maxDepth').textContent = traceStats.maxDepth;
+                
+                return result;
+            };
+        }
+
+        // Babel plugin for automatic tracing
+        function tracePlugin({ types: t }) {
+            return {
+                visitor: {
+                    FunctionDeclaration(path) {
+                        instrumentFunction(path, t);
+                    },
+                    FunctionExpression(path) {
+                        instrumentFunction(path, t);
+                    },
+                    ArrowFunctionExpression(path) {
+                        instrumentFunction(path, t);
+                    }
+                }
+            };
+        }
+
+        function instrumentFunction(path, t) {
+            const funcName = path.node.id?.name || 'anonymous';
+            const params = path.node.params.map(p => p.name || 'arg');
+            
+            const body = path.node.body;
+            
+            if (body.body?.[0]?.expression?.callee?.name === '__traceCall') return;
+
+            const traceCallNode = t.expressionStatement(
+                t.callExpression(
+                    t.identifier('__traceCall'),
+                    [
+                        t.stringLiteral(funcName),
+                        t.arrayExpression(params.map(p => t.identifier(p)))
+                    ]
+                )
+            );
+
+            path.traverse({
+                ReturnStatement(returnPath) {
+                    const arg = returnPath.node.argument;
+                    returnPath.node.argument = t.callExpression(
+                        t.identifier('__traceReturn'),
+                        [
+                            t.stringLiteral(funcName),
+                            arg || t.identifier('undefined')
+                        ]
+                    );
+                }
+            });
+
+            if (body.type === 'BlockStatement') {
+                body.body.unshift(traceCallNode);
+            }
+        }
+
+        window.__traceCall = function(name, args) {
+            const depth = callStack.length;
+            traceStats.calls++;
+            traceStats.maxDepth = Math.max(traceStats.maxDepth, depth);
+            callStack.push(name);
+            
+            const argsStr = args.map(a => JSON.stringify(a)).join(', ');
+            addTrace('CALL ' + name + '(' + argsStr + ')', 'call', depth);
+            
+            document.getElementById('callCount').textContent = traceStats.calls;
+            document.getElementById('maxDepth').textContent = traceStats.maxDepth;
+        };
+
+        window.__traceReturn = function(name, value) {
+            const depth = callStack.length - 1;
+            traceStats.returns++;
+            addTrace('RETURN ' + name + '() → ' + JSON.stringify(value), 'return', depth);
+            callStack.pop();
+            
+            document.getElementById('returnCount').textContent = traceStats.returns;
+            return value;
+        };
+        
+        function runCode() {
+            traceStats = {
+                calls: 0,
+                returns: 0,
+                maxDepth: 0,
+                logs: 0,
+                startTime: Date.now()
+            };
+            callStack = [];
+            
+            document.getElementById('consoleOutput').innerHTML = '';
+            document.getElementById('traceOutput').innerHTML = '';
+            document.getElementById('callCount').textContent = '0';
+            document.getElementById('returnCount').textContent = '0';
+            document.getElementById('maxDepth').textContent = '0';
+            document.getElementById('logCount').textContent = '0';
+            
+            const code = document.getElementById('codeEditor').value;
+            
+            const originalLog = console.log;
+            console.log = function() {
+                const args = Array.from(arguments);
+                addConsole(args.map(a => {
+                    if (typeof a === 'object') {
+                        try { return JSON.stringify(a); }
+                        catch { return String(a); }
+                    }
+                    return String(a);
+                }).join(' '), 'log');
+                originalLog.apply(console, args);
+            };
+            
+            try {
+                // Transform with Babel
+                const transformed = Babel.transform(code, {
+                    plugins: [tracePlugin]
+                }).code;
+                
+                eval(transformed);
+                addConsole('✓ Execution completed!', 'log');
+            } catch (error) {
+                addConsole('✗ Error: ' + error.message, 'error');
+            } finally {
+                console.log = originalLog;
+                
+                const elapsed = Date.now() - traceStats.startTime;
+                document.getElementById('execTime').textContent = elapsed + 'ms';
+            }
+        }
+        
+        function clearAll() {
+            document.getElementById('consoleOutput').innerHTML = 
+                '<div class="console-line" style="color: #858585;">Ready!</div>';
+            document.getElementById('traceOutput').innerHTML = 
+                '<div style="color: #858585; text-align: center; padding: 40px;">Click Run!</div>';
+            
+            traceStats = {
+                calls: 0,
+                returns: 0,
+                maxDepth: 0,
+                logs: 0,
+                startTime: 0
+            };
+            
+            document.getElementById('callCount').textContent = '0';
+            document.getElementById('returnCount').textContent = '0';
+            document.getElementById('maxDepth').textContent = '0';
+            document.getElementById('logCount').textContent = '0';
+            document.getElementById('execTime').textContent = '0ms';
+        }
+    </script>
+</body>
+</html>
