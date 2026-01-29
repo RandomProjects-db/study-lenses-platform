@@ -49,6 +49,20 @@ export default function TracersPage() {
       features: ['Pyodide', 'sys.settrace()', 'Full Python', 'Automatic']
     },
     {
+      name: 'Snoop Tracer',
+      description: 'Deep Python debugging with snoop - see every variable change',
+      file: 'snoop-tracer.html',
+      status: 'production',
+      features: ['Deep Tracing', 'Variable Tracking', 'Line-by-Line', 'Auto-scroll']
+    },
+    {
+      name: 'IceCream Tracer',
+      description: 'Sweet Python debugging with icecream - simplified print debugging',
+      file: 'icecream-tracer.html',
+      status: 'production',
+      features: ['ic| Prefix', 'Variable Names', 'Expression Values', 'Clean Output']
+    },
+    {
       name: 'Visualization Comparison',
       description: 'Compare different visualization approaches for code execution',
       file: 'viz-comparison.html',

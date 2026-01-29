@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snoop Tracer - Deep Python Debugging</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: grid;
+            grid-template-rows: 70px 1fr;
+            height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 { color: white; font-size: 20px; font-weight: 700; }
+        .controls { display: flex; gap: 12px; align-items: center; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-run { background: #48bb78; color: white; }
+        .btn-run:hover { background: #38a169; }
+        .btn-clear { background: #f56565; color: white; }
+        .btn-copy { background: #4299e1; color: white; }
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            background: #0d1117;
+        }
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            background: #21262d;
+            color: #c9d1d9;
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-content { flex: 1; overflow: auto; }
+        .code-editor {
+            width: 100%;
+            height: 100%;
+            background: #0d1117;
+            color: #c9d1d9;
+            border: none;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            resize: none;
+            outline: none;
+        }
+        .trace-output {
+            background: #0d1117;
+            color: #58a6ff;
+            padding: 20px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #58a6ff;
+            padding: 40px;
+        }
+        .spinner {
+            border: 4px solid #30363d;
+            border-top: 4px solid #58a6ff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .progress-bar {
+            width: 100%;
+            max-width: 400px;
+            height: 8px;
+            background: #30363d;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 13px;
+            color: #8b949e;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+        .toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .info {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 3px solid #58a6ff;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Snoop Tracer - Deep Python Debugging</h1>
+            <div class="controls">
+                <button class="btn btn-run" onclick="runCode()" id="runBtn" disabled>▶️ Run with Snoop</button>
+                <button class="btn btn-clear" onclick="clearTrace()">🗑️ Clear</button>
+                <button class="btn btn-copy" onclick="copyTrace()">📋 Copy Trace</button>
+            </div>
+        </div>
+        
+        <div class="workspace">
+            <div class="panel">
+                <div class="panel-header">📝 Python Code</div>
+                <div class="panel-content">
+                    <textarea class="code-editor" id="codeEditor">import snoop
+
+@snoop
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+@snoop
+def process_data(items):
+    result = []
+    for i, item in enumerate(items):
+        if item % 2 == 0:
+            result.append(item * 2)
+    return result
+
+# Test the functions
+print("=== Fibonacci Test ===")
+fib_result = fibonacci(5)
+print(f"Result: {fib_result}")
+
+print("\n=== Data Processing Test ===")
+data = [1, 2, 3, 4, 5]
+processed = process_data(data)
+print(f"Processed: {processed}")</textarea>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    🔍 Snoop Trace Output
+                    <div class="toggle">
+                        <input type="checkbox" id="autoScroll" checked>
+                        <label for="autoScroll">Auto-scroll</label>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="trace-output" id="traceOutput">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <div>Loading Pyodide and installing snoop...</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <div class="progress-text" id="progressText">Initializing...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pyodide = null;
+        let outputBuffer = '';
+        const autoScrollCheckbox = document.getElementById('autoScroll');
+        const traceOutput = document.getElementById('traceOutput');
+        const runBtn = document.getElementById('runBtn');
+
+        async function initPyodide() {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            function updateProgress(percent, text) {
+                if (progressFill) progressFill.style.width = percent + '%';
+                if (progressText) progressText.textContent = text;
+            }
+
+            try {
+                updateProgress(10, 'Loading Pyodide runtime (~10MB)...');
+                
+                pyodide = await loadPyodide({
+                    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/'
+                });
+
+                updateProgress(40, 'Pyodide loaded! Installing micropip...');
+                
+                // Load micropip package first
+                await pyodide.loadPackage('micropip');
+
+                updateProgress(60, 'Installing snoop from PyPI...');
+
+                // Install snoop using micropip
+                await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('snoop')
+                `);
+
+                updateProgress(80, 'Setting up output capture...');
+
+                await pyodide.runPythonAsync(`
+# Set up output capture
+import sys
+from js import updateOutputFromPython
+
+class JSWriter:
+    def write(self, text):
+        if text:
+            updateOutputFromPython(text)
+    
+    def flush(self):
+        pass
+
+sys.stdout = JSWriter()
+sys.stderr = JSWriter()
+                `);
+
+                updateProgress(100, 'Complete!');
+                
+                setTimeout(() => {
+                    traceOutput.innerHTML = '<div class="info">✓ Snoop ready! Click "Run with Snoop" to trace your code.</div>';
+                    runBtn.disabled = false;
+                }, 500);
+            } catch (e) {
+                traceOutput.innerHTML = `<div style="color: #f85149;">✗ Error: ${e.message}</div>`;
+                console.error(e);
+            }
+        }
+
+        window.updateOutputFromPython = function(text) {
+            // Filter out "SOURCE IS UNAVAILABLE" lines
+            if (text.includes('SOURCE IS UNAVAILABLE')) {
+                return;
+            }
+            outputBuffer += text;
+            updateOutput();
+        };
+
+        function updateOutput() {
+            traceOutput.textContent = outputBuffer;
+            if (autoScrollCheckbox.checked) {
+                traceOutput.scrollTop = traceOutput.scrollHeight;
+            }
+        }
+
+        async function runCode() {
+            if (!pyodide) return;
+
+            outputBuffer = '';
+            traceOutput.textContent = '';
+
+            const code = document.getElementById('codeEditor').value;
+
+            try {
+                await pyodide.runPythonAsync(code);
+            } catch (e) {
+                outputBuffer += `\n\n✗ Error: ${e.message}\n`;
+                updateOutput();
+            }
+        }
+
+        function clearTrace() {
+            outputBuffer = '';
+            traceOutput.textContent = '';
+        }
+
+        function copyTrace() {
+            navigator.clipboard.writeText(outputBuffer).then(() => {
+                const originalText = document.querySelector('.btn-copy').textContent;
+                document.querySelector('.btn-copy').textContent = '✓ Copied!';
+                setTimeout(() => {
+                    document.querySelector('.btn-copy').textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Load Pyodide on page load
+        initPyodide();
+
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js').catch(() => {
+                console.log('Service worker registration failed (expected in dev)');
+            });
+        }
+    </script>
+</body>
+</html>
